@@ -2,7 +2,10 @@ import React from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+// @ts-ignore
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
+
 
 const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -32,6 +35,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <Toaster />
           {children}
         </ThemeProvider>
       </body>

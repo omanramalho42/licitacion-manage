@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -103,7 +104,6 @@ export function ContratacaoTable({
     const cnpj = c.orgaoEntidade?.cnpj;
     if (!cnpj || !c.anoCompra || !c.sequencialCompra) return;
 
-    setConformidadeOpen(true);
     setConformidadeLoading(true);
     setConformidadeReport(null);
     setConformidadeError(null);
@@ -116,8 +116,21 @@ export function ContratacaoTable({
     });
 
     if ("error" in result) {
+      if (result.limitReached) {
+        // não abre o dialog, só o toast
+        setConformidadeLoading(false);
+        toast.error("Seus créditos acabaram", {
+          description:
+            "Você atingiu o limite de 10 verificações de conformidade neste mês. O limite renova no início do próximo mês.",
+          duration: 6000,
+        });
+        return;
+      }
+
+      setConformidadeOpen(true);
       setConformidadeError(result.error);
     } else {
+      setConformidadeOpen(true);
       setConformidadeReport(result);
     }
     setConformidadeLoading(false);
@@ -403,7 +416,26 @@ export function ContratacaoTable({
                   {conformidadeReport.resumo}
                 </p>
               </div>
-
+              {conformidadeReport.documentosFaltantes.length > 0 && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
+                  <p className="mb-2 text-sm font-medium text-foreground">
+                    Documentos que você ainda precisa providenciar
+                  </p>
+                  <ul className="space-y-1">
+                    {conformidadeReport.documentosFaltantes.map((doc, idx) => (
+                      <li key={idx} className="flex items-center gap-2 text-sm text-foreground">
+                        <XCircle className="h-3.5 w-3.5 shrink-0 text-warning" />
+                        {doc}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href="/documentos">
+                    <Button variant="outline" size="sm" className="mt-3">
+                      Enviar documentos
+                    </Button>
+                  </Link>
+                </div>
+              )}
               <div className="space-y-2">
                 {conformidadeReport.requisitos.map((r, idx) => (
                   <div
@@ -422,12 +454,15 @@ export function ContratacaoTable({
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-foreground">{r.descricao}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Documento necessário: <span className="font-medium">{r.documentoNecessario}</span>
+                      </p>
                       {r.observacao && (
                         <p className="mt-1 text-xs text-muted-foreground">{r.observacao}</p>
                       )}
-                      {r.documentoRelacionado && (
+                      {r.atendido && r.documentoRelacionado && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Documento: {r.documentoRelacionado}
+                          Atendido por: {r.documentoRelacionado}
                         </p>
                       )}
                     </div>

@@ -1,4 +1,10 @@
 import axios from "axios";
+import { isAxiosError } from "axios";
+
+export interface ConformidadeError {
+  error: string;
+  limitReached?: boolean;
+}
 
 export const api = axios.create({
   baseURL: "/api",
@@ -184,22 +190,24 @@ export async function listarArquivosContratacao(
 export interface RequisitoConformidade {
   descricao: string;
   categoria: "juridica" | "fiscal" | "tecnica" | "economico_financeira" | "outra";
+  documentoNecessario: string; // qual documento comprova esse requisito
   atendido: boolean;
-  documentoRelacionado?: string;
+  documentoRelacionado?: string; // qual documento do usuário atende, se atendido
   observacao?: string;
 }
 
 export interface RelatorioConformidade {
   percentualConformidade: number;
-  requisitos: RequisitoConformidade[];
   resumo: string;
+  requisitos: RequisitoConformidade[];
+  documentosFaltantes: string[]; // lista consolidada do que ainda falta providenciar
 }
 
 export async function verificarConformidade(params: {
   cnpj: string;
   ano: number | string;
   sequencial: number | string;
-}): Promise<RelatorioConformidade | { error: string }> {
+}): Promise<RelatorioConformidade | ConformidadeError> {
   try {
     const response = await api.post("/ai/verificar-conformidade", params, {
       timeout: 60_000,
@@ -207,6 +215,15 @@ export async function verificarConformidade(params: {
     return response.data;
   } catch (error) {
     console.error("[v0] Error checking conformidade:", error);
+
+    if (isAxiosError(error) && error.response?.status === 429) {
+      return {
+        error:
+          error.response.data?.error || "Limite mensal de análises atingido",
+        limitReached: true,
+      };
+    }
+
     return { error: "Falha ao verificar conformidade" };
   }
 }
@@ -262,41 +279,6 @@ export function getDefaultDateRange(): { dataInicial: string; dataFinal: string 
   return { dataInicial: startStr, dataFinal: endDate };
 }
 
-// export async function searchContratacoes(
-//   filters: SearchFilters
-// ): Promise<ContratacaoResponse> {
-//   try {
-//     const defaults = getDefaultDateRange();
-//     const params: Record<string, string | number> = {
-//       dataInicial: filters.dataInicial || defaults.dataInicial,
-//       dataFinal: filters.dataFinal || defaults.dataFinal,
-//       pagina: filters.pagina || 1,
-//       tamanhoPagina: filters.tamanhoPagina || 15,
-//     };
-
-//     if (filters.codigoModalidadeContratacao) {
-//       params.codigoModalidadeContratacao = filters.codigoModalidadeContratacao;
-//     }
-
-//     if (filters.uf) {
-//       params.uf = filters.uf;
-//     }
-
-//     if (filters.cnpjOrgao) {
-//       params.cnpjOrgao = filters.cnpjOrgao;
-//     }
-
-//     if (filters.fetchAll) {
-//       params.fetchAll = "true";
-//     }
-
-//     const response = await api.get("/pncp/contratacoes", { params });
-//     return response.data || { data: [], totalRegistros: 0 };
-//   } catch (error) {
-//     console.error("[v0] Error fetching contratacoes:", error);
-//     return { data: [], totalRegistros: 0 };
-//   }
-// }
 
 export interface DocumentoContratacao {
   sequencialDocumento: number;

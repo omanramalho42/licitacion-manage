@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-// @ts-expect-error - pdf-parse não tem types oficiais completos
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { PDFParse } from "pdf-parse";
 
 export const runtime = "nodejs";
 
@@ -12,6 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient();
+  if(!supabase) return
   const { data, error } = await supabase.storage.from("documents").download(filePath);
 
   if (error || !data) {
@@ -27,15 +27,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ text: null, error: "Arquivo não é um PDF válido" });
   }
 
+  let parser: PDFParse | null = null;
   try {
-    const parsed = await pdfParse(buffer);
-    if (!parsed.text || parsed.text.trim().length === 0) {
+    parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+
+    if (!result.text || result.text.trim().length === 0) {
       console.error("[v0] PDF sem texto extraível (provavelmente escaneado):", filePath);
       return NextResponse.json({ text: null, error: "PDF sem texto extraível (pode ser escaneado)" });
     }
-    return NextResponse.json({ text: parsed.text.slice(0, 20_000) });
+
+    return NextResponse.json({ text: result.text.slice(0, 20_000) });
   } catch (err) {
-    console.error("[v0] Erro ao interpretar PDF:!", filePath, err);
+    console.error("[v0] Erro ao interpretar PDF:", filePath, err);
     return NextResponse.json({ text: null, error: "Falha ao interpretar o PDF" });
+  } finally {
+    await parser?.destroy();
   }
 }
